@@ -1,0 +1,21 @@
+version: "3.2"
+
+services:
+  hems:
+    container_name: hems
+    image: ww24/hems
+    build:
+      context: .
+      dockerfile: Dockerfile
+    healthcheck:
+      test: curl -f http://localhost:9999 || exit 1
+      interval: "5s"
+      timeout: "3s"
+      retries: 2
+    restart: on-failure
+    ports:
+      - "9999"
+    devices:
+      - "/dev/ttyACM0:/dev/ttyACM0:rw"
+    env_file:
+      - ./env.list

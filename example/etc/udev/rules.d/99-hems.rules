@@ -1,0 +1,1 @@
+ACTION=="add",ENV{ID_BUS}=="usb",ENV{DEVNAME}=="/dev/ttyACM0",RUN+="/bin/systemctl --no-block start hems.service"
