@@ -17,8 +17,6 @@ KillMode=control-group
 Restart=on-failure
 
 [Install]
-WantedBy=multi-user.target
-Alias=hems.service
-
 # Start when HEMS USB dongle is connected
-WantedBy=sys-devices-platform-soc-3f980000.usb-usb1-1\x2d1-1\x2d1.2-1\x2d1.2:1.0-tty-ttyACM0.device
+WantedBy=multi-user.target sys-devices-platform-soc-3f980000.usb-usb1-1\x2d1-1\x2d1.2-1\x2d1.2:1.0-tty-ttyACM0.device
+Alias=hems.service
