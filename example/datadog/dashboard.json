@@ -1,0 +1,155 @@
+{
+    "title": "HEMS Dashboard",
+    "description": "## HEMS\nHome Energy Management System\n\n瞬間消費電力など、お家のエネルギーに関する指標を表示しています。",
+    "widgets": [
+        {
+            "id": 5397367096883349,
+            "definition": {
+                "type": "query_value",
+                "requests": [
+                    {
+                        "q": "max:go_expvar.hems.watt{host:hems}",
+                        "aggregator": "max",
+                        "conditional_formats": [
+                            {
+                                "comparator": ">",
+                                "value": 2700,
+                                "palette": "white_on_red"
+                            },
+                            {
+                                "comparator": ">=",
+                                "value": 2100,
+                                "palette": "white_on_yellow"
+                            }
+                        ]
+                    }
+                ],
+                "custom_links": [],
+                "title": "最大瞬間消費電力",
+                "title_size": "16",
+                "title_align": "left",
+                "time": {
+                    "live_span": "1d"
+                },
+                "autoscale": false,
+                "custom_unit": "W",
+                "precision": 1
+            },
+            "layout": {
+                "x": 0,
+                "y": 0,
+                "width": 38,
+                "height": 17
+            }
+        },
+        {
+            "id": 5493761915077217,
+            "definition": {
+                "type": "timeseries",
+                "requests": [
+                    {
+                        "q": "avg:go_expvar.hems.watt{host:hems}",
+                        "display_type": "area",
+                        "style": {
+                            "palette": "dog_classic",
+                            "line_type": "solid",
+                            "line_width": "normal"
+                        }
+                    }
+                ],
+                "custom_links": [],
+                "title": "瞬間消費電力推移(4h)",
+                "title_size": "16",
+                "title_align": "left",
+                "time": {
+                    "live_span": "4h"
+                },
+                "show_legend": false,
+                "legend_size": "0"
+            },
+            "layout": {
+                "x": 0,
+                "y": 18,
+                "width": 82,
+                "height": 26
+            }
+        },
+        {
+            "id": 2524039289209287,
+            "definition": {
+                "type": "query_value",
+                "requests": [
+                    {
+                        "q": "max:go_expvar.hems.watt{host:hems}",
+                        "aggregator": "last",
+                        "conditional_formats": [
+                            {
+                                "comparator": ">",
+                                "value": 2700,
+                                "palette": "white_on_red"
+                            },
+                            {
+                                "comparator": ">=",
+                                "value": 2100,
+                                "palette": "white_on_yellow"
+                            }
+                        ]
+                    }
+                ],
+                "custom_links": [],
+                "title": "現在の瞬間消費電力",
+                "title_size": "16",
+                "title_align": "left",
+                "time": {
+                    "live_span": "5m"
+                },
+                "autoscale": false,
+                "custom_unit": "W",
+                "precision": 1
+            },
+            "layout": {
+                "x": 39,
+                "y": 0,
+                "width": 43,
+                "height": 17
+            }
+        },
+        {
+            "id": 7939185438157099,
+            "definition": {
+                "type": "timeseries",
+                "requests": [
+                    {
+                        "q": "avg:go_expvar.hems.watt{host:hems}",
+                        "display_type": "area",
+                        "style": {
+                            "palette": "dog_classic",
+                            "line_type": "solid",
+                            "line_width": "normal"
+                        }
+                    }
+                ],
+                "custom_links": [],
+                "title": "瞬間消費電力推移(24h)",
+                "title_size": "16",
+                "title_align": "left",
+                "time": {
+                    "live_span": "1d"
+                },
+                "show_legend": false,
+                "legend_size": "0"
+            },
+            "layout": {
+                "x": 0,
+                "y": 45,
+                "width": 82,
+                "height": 20
+            }
+        }
+    ],
+    "template_variables": [],
+    "layout_type": "free",
+    "is_read_only": false,
+    "notify_list": [],
+    "id": "axp-m6k-wz7"
+}
