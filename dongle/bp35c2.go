@@ -4,8 +4,11 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/term"
 )
@@ -21,18 +24,20 @@ var (
 )
 
 // NewBP35C2 returns command wrapper for BP35C2.
-func NewBP35C2(serialDevice string, baudrate int) *BP35C2 {
+func NewBP35C2(serialDevice string, baudrate int, readTimeout time.Duration) *BP35C2 {
 	return &BP35C2{
-		SerialDevice: serialDevice,
-		Baudrate:     baudrate,
+		serialDevice: serialDevice,
+		baudrate:     baudrate,
+		readTimeout:  readTimeout,
 	}
 }
 
 // BP35C2 is BP35C0/BP35C2 client implementation.
 type BP35C2 struct {
 	m            sync.Mutex
-	SerialDevice string
-	Baudrate     int
+	serialDevice string
+	baudrate     int
+	readTimeout  time.Duration
 	term         *term.Term
 	localIP      string
 	remoteIP     string
@@ -50,17 +55,32 @@ func (d *BP35C2) SetRemoteIP(ip string) {
 
 // Connect connects serial device.
 func (d *BP35C2) Connect() error {
-	t, err := term.Open(d.SerialDevice,
-		term.Speed(d.Baudrate), term.RawMode, term.ReadTimeout(readTimeout))
+	t, err := term.Open(d.serialDevice,
+		term.Speed(d.baudrate), term.RawMode, term.ReadTimeout(d.readTimeout))
 	if err != nil {
 		return err
 	}
 	d.term = t
+	return d.clear()
+}
+
+func (d *BP35C2) clear() error {
+	// Discard data before first command.
+	if err := d.term.Flush(); err != nil {
+		return err
+	}
+	if _, err := io.Copy(ioutil.Discard, d.term); err != nil {
+		return err
+	}
+	if err := d.SKTERM(); err != nil {
+		return err
+	}
 	return nil
 }
 
 // Close closes serial device.
 func (d *BP35C2) Close() {
+	d.SKTERM()
 	d.term.Close()
 }
 
@@ -168,14 +188,18 @@ type PAN struct {
 func (d *BP35C2) SKSCAN() (*PAN, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
+
 	// SKSCAN <MODE> <CHANNEL_MASK> <DURATION> <SIDE><CRLF>
 	err := d.write("SKSCAN 2 FFFFFFFF 6 0\r\n")
 	if err != nil {
 		return nil, err
 	}
-	d.term.Flush()
+
 	reader := bufio.NewReader(d.term)
 	scanner := bufio.NewScanner(reader)
+	if err := d.term.Flush(); err != nil {
+		return nil, err
+	}
 	pan := &PAN{}
 	for scanner.Scan() {
 		l := scanner.Text()
@@ -254,9 +278,11 @@ func (d *BP35C2) SKJOIN(ipv6Addr string) error {
 	if err != nil {
 		return err
 	}
-	d.term.Flush()
 	reader := bufio.NewReader(d.term)
 	scanner := bufio.NewScanner(reader)
+	if err := d.term.Flush(); err != nil {
+		return err
+	}
 	for scanner.Scan() {
 		l := scanner.Text()
 		fmt.Println(l)
@@ -281,7 +307,6 @@ func (d *BP35C2) SKSENDTO(handle, ipAddr, port, sec string, data []byte) (string
 	s := fmt.Sprintf("SKSENDTO %s %s %s %s 0 %.4X ", handle, ipAddr, port, sec, len(data))
 	b := append([]byte(s), data[:]...)
 	b = append(b, []byte("\r\n")...)
-	defer d.term.Flush()
 	_, err := d.term.Write(b)
 	if err != nil {
 		return "", err
@@ -307,8 +332,42 @@ func (d *BP35C2) SKSENDTO(handle, ipAddr, port, sec string, data []byte) (string
 	return "", errors.New("SKSENDTO failed")
 }
 
+// SKTERM terminates PANA session.
+func (d *BP35C2) SKTERM() error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	// SKJOIN<CRLF>
+	err := d.write("SKTERM\r\n")
+	if err != nil {
+		return err
+	}
+	reader := bufio.NewReader(d.term)
+	scanner := bufio.NewScanner(reader)
+	if err := d.term.Flush(); err != nil {
+		return err
+	}
+	for scanner.Scan() {
+		l := scanner.Text()
+		fmt.Println(l)
+		if strings.Contains(l, respFail+"ER10") {
+			// session is not established
+			return nil
+		}
+		if strings.Contains(l, respFail) {
+			return fmt.Errorf("Failed to SKTERM. %s", l)
+		}
+		if strings.Contains(l, "EVENT 28 ") {
+			// session timeout (session is terminated)
+			return nil
+		}
+		if strings.Contains(l, respOk) {
+			return nil
+		}
+	}
+	return nil
+}
+
 func (d *BP35C2) write(s string) error {
-	defer d.term.Flush()
 	_, err := d.term.Write([]byte(s))
 	if err != nil {
 		return err
@@ -317,14 +376,19 @@ func (d *BP35C2) write(s string) error {
 }
 
 func (d *BP35C2) readUntil(symbol string) ([]string, error) {
-	d.term.Flush()
 	reader := bufio.NewReader(d.term)
 	scanner := bufio.NewScanner(reader)
+	if err := d.term.Flush(); err != nil {
+		return nil, err
+	}
 	rs := make([]string, 0, 1)
 	for scanner.Scan() {
 		l := strings.TrimSpace(scanner.Text())
 		fmt.Println("[RESPONSE] >>", l) // DEBUG
 		rs = append(rs, l)
+		if strings.Contains(l, "EVENT 29 ") {
+			return nil, errors.New("session lifetime exceeded")
+		}
 		if strings.Contains(l, respFail) {
 			return nil, errors.New(l)
 		}

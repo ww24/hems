@@ -14,15 +14,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ww24/hems/dongle"
-	"github.com/ww24/hems/metric"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/ww24/hems/dongle"
+	"github.com/ww24/hems/metric"
 )
 
 const (
-	initTimeout   = 30 * time.Second
+	initTimeout   = 90 * time.Second
+	readTimeout   = 30 * time.Second
 	fetchTimeout  = 10 * time.Second
 	fetchWaitTime = 10 * time.Second
 	maxRetryCount = 5
@@ -49,6 +51,7 @@ func init() {
 func main() {
 	rbID := os.Getenv("HEMS_ROUTEB_ID")
 	pwd := os.Getenv("HEMS_PASSWORD")
+	device := os.Getenv("HEMS_DEVICE")
 
 	if rbID == "" {
 		logger.Fatal("HEMS_ROUTEB_ID must be specified")
@@ -57,14 +60,18 @@ func main() {
 		logger.Fatal("HEMS_PASSWORD must be specified")
 	}
 
-	logger.Info("# Started")
+	logger.Info("Started")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	start, closeFunc := launcher(ctx, rbID, pwd, device)
+	defer closeFunc()
 	go func() {
 		retryCount := 0
 		for {
-			err := start(ctx, rbID, pwd)
+			err := start()
 			switch err {
+			case nil:
+				return
 			case errMaxRetryCountExeeded:
 				retryCount = 0
 			default:
@@ -82,13 +89,15 @@ func main() {
 	srv := &http.Server{Addr: ":" + strconv.Itoa(metricsPort)}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
-			logger.Error("failed to listen and serve", zap.Error(err))
+			if !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("failed to listen and serve", zap.Error(err))
+			}
 			cancel()
 		}
 	}()
 
 	sig := make(chan os.Signal)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
@@ -106,41 +115,47 @@ func main() {
 	}
 }
 
-func start(ctx context.Context, rbID, pwd string) error {
-	var serialDevice string
-	switch runtime.GOOS {
-	case "darwin":
-		// mac (ポートによって device が変わる)
-		serialDevice = "/dev/tty.usbmodem14101"
-		// d.SerialDevice = "/dev/tty.usbmodem14201"
-	default:
-		// raspberry pi.
-		serialDevice = "/dev/ttyACM0"
+func launcher(ctx context.Context, rbID, pwd, serialDevice string) (func() error, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(ctx)
+
+	if serialDevice == "" {
+		switch runtime.GOOS {
+		case "darwin":
+			// mac (ポートによって device が変わる)
+			serialDevice = "/dev/tty.usbmodem14101"
+		default:
+			// raspberry pi.
+			serialDevice = "/dev/ttyACM0"
+		}
 	}
-	d := dongle.NewBP35C2(serialDevice, 115200)
+	d := dongle.NewBP35C2(serialDevice, 115200, readTimeout)
 	du := dongle.New(d,
 		dongle.NewLogger(logger),
 		dongle.NewRbID(rbID),
 		dongle.NewPwd(pwd))
-	defer du.Close()
 
-	g, c := errgroup.WithContext(ctx)
-	g.Go(func() error { return du.Init() })
-	go g.Wait()
+	return func() error {
+			g, c := errgroup.WithContext(ctx)
+			g.Go(func() error { return du.Init() })
+			go g.Wait()
 
-	select {
-	case <-c.Done():
-		if err := g.Wait(); err != nil {
-			logger.Error("failed to init", zap.Error(err))
-			return err
+			select {
+			case <-c.Done():
+				if err := g.Wait(); err != nil {
+					logger.Error("failed to init", zap.Error(err))
+					return err
+				}
+			case <-time.After(initTimeout):
+				logger.Error("failed to init becase timeout exceeded")
+				return errors.New("failed to init becase timeout exceeded")
+			}
+
+			logger.Info("Scanned")
+			return processor(ctx, du, callback)
+		}, func() {
+			cancel()
+			du.Close()
 		}
-	case <-time.After(initTimeout):
-		logger.Error("failed to init becase timeout exceeded")
-		return errors.New("failed to init becase timeout exceeded")
-	}
-
-	logger.Info("# Scanned")
-	return processor(ctx, du, callback)
 }
 
 // Result represents hems device response.
@@ -165,12 +180,13 @@ func processor(ctx context.Context, du *dongle.Client, callback func(res *Result
 			err = e
 		}
 	}()
+	timer := time.NewTimer(fetchWaitTime)
+	defer timer.Stop()
 	for {
-		timer := time.After(fetchWaitTime)
 		select {
 		case <-ctx.Done():
 			return
-		case <-timer:
+		case <-timer.C:
 			err = func() error {
 				ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 				defer cancel()
@@ -200,5 +216,6 @@ func processor(ctx context.Context, du *dongle.Client, callback func(res *Result
 				return
 			}
 		}
+		timer.Reset(fetchTimeout)
 	}
 }
