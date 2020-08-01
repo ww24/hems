@@ -23,10 +23,16 @@ B ルート対応 Wi-SUN デバイスにシリアル通信で接続し、消費�
 make build-rpi4
 ```
 
-### Raspberry Pi 2, 3 or Zero
+### Raspberry Pi 2, 3
 
 ```sh
-make build-rpi
+make build-rpi2
+```
+
+### Raspberry Pi 1, Zero
+
+```sh
+make build-rpi0
 ```
 
 ## Example

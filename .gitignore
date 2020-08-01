@@ -15,5 +15,9 @@
 vendor/
 
 hems
-hems_linux_arm
+hems_linux_armv6
+hems_linux_armv7
 hems_linux_arm64
+
+.*
+!.gitignore
