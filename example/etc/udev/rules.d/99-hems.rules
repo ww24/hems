@@ -1,1 +1,1 @@
-ACTION=="add",ENV{ID_BUS}=="usb",ENV{DEVNAME}=="/dev/ttyACM0",RUN+="/bin/systemctl --no-block start hems.service"
+SUBSYSTEM=="tty",ACTION=="add",ENV{ID_VENDOR_ID}=="0409",ENV{ID_MODEL_ID}=="04c7",ENV{ID_USB_INTERFACE_NUM}=="00",GROUP="dialout",TAG+="systemd",SYMLINK+="udg-1-wsne",NAME="udg-1-wsne",ENV{SYSTEMD_WANTS}+="hems.service"

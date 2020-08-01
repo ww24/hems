@@ -1,22 +1,16 @@
 [Unit]
 Description=hems
 
-# Stop the service when the HEMS USB dongle is disconnected
-BindsTo=sys-devices-platform-soc-3f980000.usb-usb1-1\x2d1-1\x2d1.2-1\x2d1.2:1.0-tty-ttyACM0.device
-
 # Wait until HEMS USB dongle is connected
-After=sys-devices-platform-soc-3f980000.usb-usb1-1\x2d1-1\x2d1.2-1\x2d1.2:1.0-tty-ttyACM0.device
+Requires=dev-udg\x2d1\x2dwsne.device
+After=dev-udg\x2d1\x2dwsne.device
 
 [Service]
 Type=simple
 Environment=HEMS_ROUTEB_ID=xxx
 Environment=HEMS_PASSWORD=xxx
-ExecStart=/home/pi/datadog/hems_linux_arm
+Environment=HEMS_DEVICE=/dev/udg-1-wsne
+ExecStart=/usr/local/bin/hems_linux_armv7
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=control-group
 Restart=on-failure
-
-[Install]
-# Start when HEMS USB dongle is connected
-WantedBy=multi-user.target sys-devices-platform-soc-3f980000.usb-usb1-1\x2d1-1\x2d1.2-1\x2d1.2:1.0-tty-ttyACM0.device
-Alias=hems.service

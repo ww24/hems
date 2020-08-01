@@ -8,7 +8,7 @@
                 "type": "query_value",
                 "requests": [
                     {
-                        "q": "max:go_expvar.hems.watt{host:hems}",
+                        "q": "max:go_expvar.hems.watt{$host}",
                         "aggregator": "max",
                         "conditional_formats": [
                             {
@@ -48,16 +48,23 @@
                 "type": "timeseries",
                 "requests": [
                     {
-                        "q": "avg:go_expvar.hems.watt{host:hems}",
+                        "q": "avg:go_expvar.hems.watt{$host}.rollup(max)",
                         "display_type": "area",
                         "style": {
                             "palette": "dog_classic",
                             "line_type": "solid",
                             "line_width": "normal"
-                        }
+                        },
+                        "on_right_yaxis": false
                     }
                 ],
-                "custom_links": [],
+                "yaxis": {
+                    "label": "",
+                    "scale": "linear",
+                    "min": "auto",
+                    "max": "auto",
+                    "include_zero": true
+                },
                 "title": "瞬間消費電力推移(4h)",
                 "title_size": "16",
                 "title_align": "left",
@@ -80,7 +87,7 @@
                 "type": "query_value",
                 "requests": [
                     {
-                        "q": "max:go_expvar.hems.watt{host:hems}",
+                        "q": "max:go_expvar.hems.watt{$host}",
                         "aggregator": "last",
                         "conditional_formats": [
                             {
@@ -120,7 +127,7 @@
                 "type": "timeseries",
                 "requests": [
                     {
-                        "q": "avg:go_expvar.hems.watt{host:hems}",
+                        "q": "avg:go_expvar.hems.watt{$host}.rollup(max)",
                         "display_type": "area",
                         "style": {
                             "palette": "dog_classic",
@@ -129,7 +136,13 @@
                         }
                     }
                 ],
-                "custom_links": [],
+                "yaxis": {
+                    "label": "",
+                    "scale": "linear",
+                    "min": "auto",
+                    "max": "auto",
+                    "include_zero": true
+                },
                 "title": "瞬間消費電力推移(24h)",
                 "title_size": "16",
                 "title_align": "left",
@@ -147,7 +160,13 @@
             }
         }
     ],
-    "template_variables": [],
+    "template_variables": [
+        {
+            "name": "host",
+            "default": "raspberrypi",
+            "prefix": "host"
+        }
+    ],
     "layout_type": "free",
     "is_read_only": false,
     "notify_list": [],
