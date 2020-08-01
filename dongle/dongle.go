@@ -11,10 +11,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	readTimeout = 5 * time.Second
-)
-
 var (
 	// ErrFatal is not retriable error.
 	ErrFatal = errors.New("Fatal error")
@@ -58,6 +54,7 @@ type Dongle interface {
 	SKSENDTO(handle, ipAddr, port, sec string, data []byte) (string, error)
 }
 
+// Init initialises connection.
 func (du *Client) Init() error {
 	logger := du.Logger
 
@@ -141,10 +138,12 @@ func (du *Client) Init() error {
 	return nil
 }
 
+// Close closes connection.
 func (du *Client) Close() {
 	du.Dongle.Close()
 }
 
+// Fetch fetches electric energy consumption [watt].
 func (du *Client) Fetch(ctx context.Context, f func(time time.Time, watt int64)) error {
 	logger := du.Logger
 
@@ -184,7 +183,7 @@ func (du *Client) fetch() (time.Time, int64, error) {
 	}
 	if a[8] != "0012" {
 		fmt.Println(fmt.Sprintf("%s is not 0012. ", a[7]))
-		return t, 0, err
+		return t, 0, errors.New("unexpected response")
 	}
 	o := a[9]
 	w, err := strconv.ParseInt(o[len(o)-8:], 16, 0)
